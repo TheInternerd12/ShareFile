@@ -8,41 +8,45 @@ from urllib.error import URLError
 from urllib.parse import quote
 
 from fman import (
-    DirectoryPaneCommand, 
-    show_alert, 
-    show_status_message, 
+    DirectoryPaneCommand,
+    show_alert,
+    show_status_message,
     clear_status_message,
     YES,
     NO,
 )
 
-__author__     = "Usman Mahmood"
-__license__    = "MIT"
-__version__    = "1.0.1"
+from fman import clipboard
+
+__author__ = "Usman Mahmood"
+__license__ = "MIT"
+__version__ = "1.0.1"
 __maintainer__ = "Usman Mahmood"
 
 template = "ShareFile\n\n{0}\n\n{1}"
 
+
 class ShareFile(DirectoryPaneCommand):
-    def __call__(self):       
+    def __call__(self):
         filepath = self.pane.get_file_under_cursor()
         if not filepath:
-            return        
+            return
         filepath = filepath.replace('file://', '')
         filename = path.basename(filepath)
         if not path.isfile(filepath):
-            msg = "ShareFile: '{0}' is not a file, please select a file.".format(filename) 
-            show_status_message(msg, timeout_secs=3)        
+            msg = "ShareFile: '{0}' is not a file, please select a file.".format(filename)
+            show_status_message(msg, timeout_secs=3)
             return
 
         msg = template.format("Share file '{0}'?".format(filename), "")
-        response = show_alert(msg, buttons=NO|YES, default_button=YES)
+        response = show_alert(msg, buttons=NO | YES, default_button=YES)
 
         if response == YES:
             # upload in separate thread so we don't block UI, especially when
             # uploading large (MB) files.
             t = UploadThread(1, filepath, filename)
             t.start()
+
 
 class UploadThread(threading.Thread):
     def __init__(self, tid, filepath, filename):
@@ -51,7 +55,7 @@ class UploadThread(threading.Thread):
         self.filepath = filepath
         self.filename = quote(filename)
 
-    def run(self):        
+    def run(self):
         _, ext = path.splitext(self.filename)
 
         try:
@@ -63,17 +67,17 @@ class UploadThread(threading.Thread):
             data = f.read()
 
         headers = {
-            "Accept"            : "*/*",
-            "Accept-Encoding"   : "gzip,deflate",
-            "Accept-Language"   : "en-US,en;q=0.8",
-            "Connection"        : "keep-alive",
-            "Content-Length"    : len(data),
-            "Content-Type"      : mime_type,
-            "Host"              : "transfer.sh",
-            "Origin"            : "https://transfer.sh",
-            "Referer"           : "https://transfer.sh/",
-            "User-Agent"        : "Mozilla/5.0",
-            "X_FILENAME"        : self.filename
+            "Accept": "*/*",
+            "Accept-Encoding": "gzip,deflate",
+            "Accept-Language": "en-US,en;q=0.8",
+            "Connection": "keep-alive",
+            "Content-Length": len(data),
+            "Content-Type": mime_type,
+            "Host": "transfer.sh",
+            "Origin": "https://transfer.sh",
+            "Referer": "https://transfer.sh/",
+            "User-Agent": "Mozilla/5.0",
+            "X_FILENAME": self.filename
         }
 
         url = "https://transfer.sh/" + self.filename
@@ -84,9 +88,12 @@ class UploadThread(threading.Thread):
             show_status_message("ShareFile: uploading file...")
             with request.urlopen(req, timeout=10) as resp:
                 if resp.status == 200:
-                    body       = resp.read()
+                    body = resp.read()
                     share_link = body.decode('utf-8').strip('\n')
-                    msg        = template.format(share_link, "")
+                    msg = template.format(share_link, "")
+
+                    clipboard.clear()
+                    clipboard.set_text(share_link)
                 else:
                     msg = template.format("Could not upload file",
                                           str(resp.status) + " " + resp.reason)
